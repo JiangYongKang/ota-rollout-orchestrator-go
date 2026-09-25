@@ -1,0 +1,5 @@
+# Local state and demo artifacts
+/data/
+*.json.tmp
+/otad
+/otactl
