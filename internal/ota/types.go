@@ -60,21 +60,24 @@ type Device struct {
 
 // Batch 一个灰度批次。
 type Batch struct {
-	Index     int      `json:"index"`
-	DeviceIDs []string `json:"device_ids"`
-	Started   bool     `json:"started"`
-	Healthy   bool     `json:"healthy"` // 最近一次健康判定结果
+	Index        int        `json:"index"`
+	DeviceIDs    []string   `json:"device_ids"`
+	Started      bool       `json:"started"`
+	Healthy      bool       `json:"healthy"`                 // 最近一次健康判定结果
+	Evaluated    bool       `json:"evaluated"`               // 本批是否已形成确定结论（放量/暂停），形成后不再重复评估
+	ObserveUntil *time.Time `json:"observe_until,omitempty"` // 观察期截止时间（仅设置了观察期的任务）
 }
 
 // Task 升级任务。
 type Task struct {
-	ID             string     `json:"id"`
-	TargetVersion  string     `json:"target_version"`
-	Status         TaskStatus `json:"status"`
-	Batches        []Batch    `json:"batches"`
-	CurrentBatch   int        `json:"current_batch"`    // 当前推进到的批次
-	MinSuccessRate float64    `json:"min_success_rate"` // 健康判定：批次成功率阈值
-	CreatedAt      time.Time  `json:"created_at"`
+	ID             string        `json:"id"`
+	TargetVersion  string        `json:"target_version"`
+	Status         TaskStatus    `json:"status"`
+	Batches        []Batch       `json:"batches"`
+	CurrentBatch   int           `json:"current_batch"`    // 当前推进到的批次
+	MinSuccessRate float64       `json:"min_success_rate"` // 健康判定：批次成功率阈值
+	ObservePeriod  time.Duration `json:"observe_period,omitempty"` // 每批下发后的观察期；0 表示纯手动推进（历史任务默认）
+	CreatedAt      time.Time     `json:"created_at"`
 }
 
 // Report 设备上报消息。
