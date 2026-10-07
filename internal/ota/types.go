@@ -58,12 +58,24 @@ type Device struct {
 	FailReason     string       `json:"fail_reason,omitempty"`
 }
 
+// 判定触发来源。
+const (
+	TriggerManual = "manual" // 人工（手动 Advance）
+	TriggerAuto   = "auto"   // 观察期到点自动调度
+)
+
 // Batch 一个灰度批次。
 type Batch struct {
 	Index     int      `json:"index"`
 	DeviceIDs []string `json:"device_ids"`
 	Started   bool     `json:"started"`
 	Healthy   bool     `json:"healthy"` // 最近一次健康判定结果
+
+	// 观察期与一次性判定保护。零值字段对历史任务天然兼容。
+	ObserveDeadline *time.Time `json:"observe_deadline,omitempty"` // 当前观察期到点时刻；nil 表示无观察期或不在观察
+	Decided         bool       `json:"decided"`                    // 本批是否已形成确定结论（放量/暂停），仅允许一次
+	DecidedAt       *time.Time `json:"decided_at,omitempty"`
+	Trigger         string     `json:"trigger,omitempty"` // 形成结论的触发来源：manual / auto
 }
 
 // Task 升级任务。
@@ -75,6 +87,9 @@ type Task struct {
 	CurrentBatch   int        `json:"current_batch"`    // 当前推进到的批次
 	MinSuccessRate float64    `json:"min_success_rate"` // 健康判定：批次成功率阈值
 	CreatedAt      time.Time  `json:"created_at"`
+
+	// ObservePeriod 每批下发后的观察期时长；0 表示不启用自动调度，保持手动推进。
+	ObservePeriod time.Duration `json:"observe_period,omitempty"`
 }
 
 // Report 设备上报消息。

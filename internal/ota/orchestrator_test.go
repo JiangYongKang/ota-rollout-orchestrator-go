@@ -13,7 +13,9 @@ func newEnv(t *testing.T) (*Orchestrator, *Store) {
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
-	return NewOrchestrator(store), store
+	o := NewOrchestrator(store)
+	t.Cleanup(o.Close)
+	return o, store
 }
 
 // logSnapshot 打印批次、设备状态与判定依据。
@@ -64,7 +66,7 @@ func makeDevices(n int) (map[string]string, map[string]*SimDevice) {
 func TestHappyPathRollout(t *testing.T) {
 	o, _ := newEnv(t)
 	devs, sims := makeDevices(6)
-	if _, err := o.CreateTask("t1", "v2.0.0", devs, 2, 0.8); err != nil {
+	if _, err := o.CreateTask("t1", "v2.0.0", devs, 2, 0.8, 0); err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	if err := o.Start("t1"); err != nil {
@@ -98,7 +100,7 @@ func TestOfflineReconnect(t *testing.T) {
 	o, _ := newEnv(t)
 	devs, sims := makeDevices(2)
 	sims["dev-001"].DropReports = true // 故障注入：离线上报缺失
-	if _, err := o.CreateTask("t1", "v2.0.0", devs, 2, 0.6); err != nil {
+	if _, err := o.CreateTask("t1", "v2.0.0", devs, 2, 0.6, 0); err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	if err := o.Start("t1"); err != nil {
@@ -141,7 +143,7 @@ func TestOfflineReconnect(t *testing.T) {
 func TestDuplicateAndOutOfOrderReports(t *testing.T) {
 	o, _ := newEnv(t)
 	devs, _ := makeDevices(1)
-	if _, err := o.CreateTask("t1", "v2.0.0", devs, 1, 1.0); err != nil {
+	if _, err := o.CreateTask("t1", "v2.0.0", devs, 1, 1.0, 0); err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	if err := o.Start("t1"); err != nil {
@@ -179,7 +181,7 @@ func TestFailureRollbackAndPause(t *testing.T) {
 	devs, sims := makeDevices(4)
 	sims["dev-001"].FailNextUpgrade = true // 故障注入
 	sims["dev-003"].FailNextUpgrade = true
-	if _, err := o.CreateTask("t1", "v2.0.0", devs, 2, 0.9); err != nil {
+	if _, err := o.CreateTask("t1", "v2.0.0", devs, 2, 0.9, 0); err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	if err := o.Start("t1"); err != nil {
@@ -222,7 +224,7 @@ func TestConcurrentPushAndReports(t *testing.T) {
 	o, _ := newEnv(t)
 	const n = 40
 	devs, sims := makeDevices(n)
-	if _, err := o.CreateTask("t1", "v2.0.0", devs, 10, 0.8); err != nil {
+	if _, err := o.CreateTask("t1", "v2.0.0", devs, 10, 0.8, 0); err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	if err := o.Start("t1"); err != nil {
@@ -271,7 +273,7 @@ func TestPersistenceAcrossRestart(t *testing.T) {
 	}
 	o := NewOrchestrator(store)
 	devs, sims := makeDevices(2)
-	if _, err := o.CreateTask("t1", "v2.0.0", devs, 2, 0.5); err != nil {
+	if _, err := o.CreateTask("t1", "v2.0.0", devs, 2, 0.5, 0); err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	if err := o.Start("t1"); err != nil {
@@ -281,6 +283,7 @@ func TestPersistenceAcrossRestart(t *testing.T) {
 	if _, err := o.Advance("t1"); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
+	o.Close() // 模拟进程退出
 
 	// 模拟进程重启：重新加载存储
 	store2, err := NewStore(path)
@@ -288,6 +291,7 @@ func TestPersistenceAcrossRestart(t *testing.T) {
 		t.Fatalf("reload: %v", err)
 	}
 	o2 := NewOrchestrator(store2)
+	t.Cleanup(o2.Close)
 	task, devs2, err := o2.Snapshot("t1")
 	if err != nil {
 		t.Fatalf("Snapshot: %v", err)
@@ -310,7 +314,7 @@ func TestPersistenceAcrossRestart(t *testing.T) {
 func TestIdempotentRedeliver(t *testing.T) {
 	o, _ := newEnv(t)
 	devs, sims := makeDevices(1)
-	if _, err := o.CreateTask("t1", "v2.0.0", devs, 1, 1.0); err != nil {
+	if _, err := o.CreateTask("t1", "v2.0.0", devs, 1, 1.0, 0); err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	if err := o.Start("t1"); err != nil {
